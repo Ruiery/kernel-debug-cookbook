@@ -62,7 +62,7 @@ D:\claude-workspace\kernel\
 ```bash
 cd /d/claude-workspace/kernel
 git init
-printf 'kb/\n' > .gitignore  # kb 里可能含内网敏感信息，先不进版本库（合规红线）
+printf '.superpowers/\n' > .gitignore  # 只忽略 SDD 工作区；kb/ 本地版本化（Ruling 1）
 ```
 
 - [ ] **Step 2: 写 README.md**
