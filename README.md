@@ -1,4 +1,4 @@
-# kernel-debug-kb
+# kernel-debug-cookbook
 
 工具无关的 Linux 内核调试知识库。纯 markdown 方法论 + shell 脚本，任何 AI Agent 都能读、能用、能持续更新。
 
@@ -33,4 +33,4 @@
 
 ## 合规
 
-**本仓库保持无 remote；如需加 remote，先 gitignore kb/ 以保护敏感条目。**
+**kb/ 案例条目（可能含内网敏感信息）已 gitignore、不进 GitHub；仓库只共享方法论、脚本和模板。如需本地版本化案例，另建私有仓库。**

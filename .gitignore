@@ -1,1 +1,3 @@
 .superpowers/
+kb/*
+!kb/_template.md
