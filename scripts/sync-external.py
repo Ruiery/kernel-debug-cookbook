@@ -1,89 +1,105 @@
 #!/usr/bin/env python3
-"""从 lore.kernel.org 同步 syzbot 报告 + LKML patch 到 sync/。
+"""从 lore public-inbox（git 协议）同步 LKML patch 到 sync/lkml/。
 
-在 GitHub Actions 上定时运行（见 .github/workflows/sync.yml）。
-注：lore.kernel.org 的 HTTP 搜索有 Anubis 反爬，GitHub 云 IP 通常能过；
-若被拦，会检测到并报错退出（此时回退到 git public-inbox 方案）。
+为什么用 git 而非 HTTP：lore.kernel.org 的 HTTP 搜索被 Anubis 反爬拦
+（本地和 GitHub Actions 的 IP 都被拦）；git 协议不拦，`--depth N` 浅克隆可用。
+
+syzbot 报告埋在高流量 lkml 主列表（~万封/天），git 浅克隆够不到足够的
+时间窗口，暂不覆盖——需另接 syzbot 自己的 dashboard API。
 """
 import os
 import re
+import shutil
+import subprocess
 import sys
-import urllib.parse
-import urllib.request
-import xml.etree.ElementTree as ET
+import tempfile
 
-UA = "Mozilla/5.0 (compatible; kernel-debug-cookbook-sync/1.0; +https://github.com/Ruiery/kernel-debug-cookbook)"
-BASE = "https://lore.kernel.org/all/"
-ATOM_NS = {"a": "http://www.w3.org/2005/Atom"}
+LISTS = ["linux-mm", "linux-block", "linux-rt-users"]  # 子系统列表，可增
+DEPTH = 500  # 每次浅克隆最近 N 封邮件（约一天）
+OUT = "sync/lkml"
 
 
-def fetch_atom(query, days):
-    """查询 lore，返回 Atom XML 文本。"""
-    q = f"{query} d:{days}.day.ago.."
-    url = BASE + "?q=" + urllib.parse.quote(q) + "&x=A"
-    req = urllib.request.Request(url, headers={
-        "User-Agent": UA,
-        "Accept": "application/atom+xml",
-    })
-    with urllib.request.urlopen(req, timeout=60) as r:
-        body = r.read().decode("utf-8", "replace")
-    if "anubis" in body.lower() or "not a bot" in body.lower():
-        raise RuntimeError("被 Anubis 反爬拦截（需回退到 git public-inbox 方案）")
-    return body
+def clone(listname, depth):
+    tmp = tempfile.mkdtemp()
+    url = f"https://lore.kernel.org/{listname}/0"
+    r = subprocess.run(
+        ["git", "clone", "--quiet", "--depth", str(depth), url, tmp],
+        capture_output=True, text=True,
+    )
+    if r.returncode != 0:
+        raise RuntimeError(f"clone {listname} 失败: {r.stderr.strip()}")
+    return tmp
 
 
-def parse_atom(xml_text):
-    """解析 Atom，返回 [{title, msgid, link, updated}]。"""
-    root = ET.fromstring(xml_text)
-    entries = []
-    for e in root.findall("a:entry", ATOM_NS):
-        title = (e.findtext("a:title", "", ATOM_NS) or "").strip()
-        link = e.find("a:link", ATOM_NS)
-        href = link.get("href", "") if link is not None else ""
-        updated = (e.findtext("a:updated", "", ATOM_NS) or "").strip()
-        # message-id 从链接里取（形如 https://lore.kernel.org/all/<msgid>/）
-        m = re.search(r"/all/([^/]+)/?$", href)
-        msgid = m.group(1) if m else ""
-        entries.append({"title": title, "msgid": msgid, "link": href, "updated": updated})
-    return entries
+def get_patches(repo):
+    """返回 [(hash, subject)]，只取 patch 主题的邮件。"""
+    r = subprocess.run(
+        ["git", "-C", repo, "log", "--format=%H%x1f%s", "--grep=PATCH"],
+        capture_output=True, text=True,
+    )
+    out = []
+    for line in r.stdout.splitlines():
+        if "\x1f" in line:
+            h, s = line.split("\x1f", 1)
+            if s.strip().startswith("[PATCH"):
+                out.append((h, s.strip()))
+    return out
 
 
-def write_entries(entries, dest_dir):
-    """把条目写成 markdown（文件名用 message-id，稳定去重）。"""
-    os.makedirs(dest_dir, exist_ok=True)
-    n = 0
-    for e in entries:
-        if not e["title"] or not e["msgid"]:
-            continue
-        fn = os.path.join(dest_dir, re.sub(r"[^A-Za-z0-9@._-]", "_", e["msgid"]) + ".md")
-        with open(fn, "w", encoding="utf-8") as f:
-            f.write("---\n")
-            f.write(f"title: {e['title']}\n")
-            f.write("source: lore\n")
-            f.write(f"link: {e['link']}\n")
-            f.write(f"date: {e['updated']}\n")
-            f.write("---\n\n")
-            f.write(f"# {e['title']}\n\n")
-            f.write(f"- 来源：{e['link']}\n")
-            f.write(f"- 时间：{e['updated']}\n")
-        n += 1
-    print(f"{dest_dir}: 写入 {n} 条")
+def get_message(repo, h):
+    """读原始邮件（public-inbox 把每封邮件存成 commit 的 m blob）。"""
+    r = subprocess.run(
+        ["git", "-C", repo, "show", f"{h}:m"],
+        capture_output=True, text=True,
+    )
+    return r.stdout
+
+
+def parse_email(raw):
+    msgid = ""
+    m = re.search(r"^message-id:\s*<([^>]+)>", raw, re.M | re.I)
+    if m:
+        msgid = m.group(1)
+    body = raw.split("\n\n", 1)[1].strip() if "\n\n" in raw else ""
+    return msgid, body
+
+
+def write_markdown(dest, listname, title, msgid, body):
+    key = msgid or re.sub(r"[^A-Za-z0-9]+", "_", title)[:80]
+    fn = os.path.join(dest, re.sub(r"[^A-Za-z0-9@._-]", "_", key) + ".md")
+    link = f"https://lore.kernel.org/{listname}/{msgid}/" if msgid else ""
+    with open(fn, "w", encoding="utf-8") as f:
+        f.write("---\n")
+        f.write(f"title: {title}\n")
+        f.write(f"list: {listname}\n")
+        f.write(f"message_id: {msgid}\n")
+        f.write(f"link: {link}\n")
+        f.write("---\n\n")
+        f.write(f"# {title}\n\n")
+        f.write(f"来源：[{link}]({link})\n\n" if link else "")
+        if body:
+            f.write("```\n" + body[:8000] + "\n```\n")
 
 
 def main():
+    os.makedirs(OUT, exist_ok=True)
     ok = True
-    # 1) syzbot 报告（最值钱：bug 标题 + 链接）
-    try:
-        write_entries(parse_atom(fetch_atom("s:syzbot", 7)), "sync/syzbot")
-    except Exception as ex:
-        ok = False
-        print(f"syzbot 同步失败: {ex}", file=sys.stderr)
-    # 2) 子系统 LKML patch（先粗筛，v1 按关键词，后续可细化）
-    try:
-        write_entries(parse_atom(fetch_atom('s:"PATCH" (s:mm OR s:sched OR s:locking)', 1)), "sync/lkml")
-    except Exception as ex:
-        ok = False
-        print(f"lkml 同步失败: {ex}", file=sys.stderr)
+    for listname in LISTS:
+        repo = None
+        try:
+            repo = clone(listname, DEPTH)
+            patches = get_patches(repo)
+            for h, s in patches:
+                raw = get_message(repo, h)
+                msgid, body = parse_email(raw)
+                write_markdown(OUT, listname, s, msgid, body)
+            print(f"{listname}: {len(patches)} 条 patch")
+        except Exception as ex:
+            ok = False
+            print(f"{listname} 同步失败: {ex}", file=sys.stderr)
+        finally:
+            if repo:
+                shutil.rmtree(repo, ignore_errors=True)
     sys.exit(0 if ok else 1)
 
 
