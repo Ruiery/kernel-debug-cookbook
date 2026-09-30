@@ -86,7 +86,7 @@ git log -p -S "CONFIG_FOO" -- drivers/foo/Kconfig
 - **结构体字段增删**：依赖的字段被删除/改名/移位（`container_of` 偏移假设失效），旧代码访问到错位置。
 - **函数从 `EXPORT_SYMBOL` 变 `EXPORT_SYMBOL_GPL`**：外部模块（非 GPL 声明）链接时直接 `Unknown symbol`，license 不匹配。
 - **config 项改名/删除**：旧 `.config` 里的 `CONFIG_FOO` 在新树不存在，静默失效或报错。
-- **`__init`/`__exit` 语义变**：初始化/清理函数被标记 `__init` 后，`__init` 段在 init 后释放，若在运行时仍被引用则悬空。
+- **`__init`/`__exit` 段释放（通用 bug，非跨版本 API 变化）**：初始化/清理函数被标记 `__init` 后，`__init` 段在 init 后释放，若在运行时仍被引用则悬空。这是通用 bug，只是版本升级时（调用路径/时序变化）更容易暴露，不属于两版本间的接口差异。
 
 **修复注意**：
 
