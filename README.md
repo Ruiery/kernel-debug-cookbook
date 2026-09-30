@@ -17,7 +17,7 @@
 |------|---------|--------|
 | `methodology/` | 程序性知识（**怎么查**、怎么修）：决策树、排查打法、修复清单、工具选型表、引源 | 调试开始即加载，塑造推理 |
 | `kb/` | 陈述性知识（**查过什么**）：一条一案，症状 → 根因 → 修复 → 验证 → 出处 → 教训 | 调试中按需查询 |
-| `scripts/` | **动作**（shell 脚本）：构建 KASAN、跑 kselftest、跑 syzkaller、git-to-kb 钩子、外部同步 | 直接执行 |
+| `scripts/` | **动作**（shell 脚本）：构建 KASAN、跑 kselftest、跑 syzkaller、git-to-kb 钩子、校验（validate） | 直接执行 |
 
 增长节奏：`methodology/` 慢（发现新 bug 类别时补清单），`kb/` 快（每次 commit/debug 加一条），`scripts/` 按需。
 
