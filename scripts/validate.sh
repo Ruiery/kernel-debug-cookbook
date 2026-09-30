@@ -5,7 +5,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 fail=0
 for f in "$REPO_ROOT"/kb/*.md; do
   [ -e "$f" ] || continue
-  case "$f" in *_template.md) continue;; esac
+  case "$(basename "$f")" in _*) continue;; esac
   for field in title root_cause fix lesson; do
     grep -q "^$field:" "$f" || { echo "缺少字段 $field: $f"; fail=1; }
   done
