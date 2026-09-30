@@ -1,0 +1,122 @@
+---
+title: [PATCH v4 7/8] block: unpin all pages of a bvec in bio_iov_iter_align_down()
+list: linux-block
+message_id: 20260921-blkdev-fixes-v4-7-e2801f71ede9@columbia.edu
+link: https://lore.kernel.org/linux-block/20260921-blkdev-fixes-v4-7-e2801f71ede9@columbia.edu/
+---
+
+# [PATCH v4 7/8] block: unpin all pages of a bvec in bio_iov_iter_align_down()
+
+来源：[https://lore.kernel.org/linux-block/20260921-blkdev-fixes-v4-7-e2801f71ede9@columbia.edu/](https://lore.kernel.org/linux-block/20260921-blkdev-fixes-v4-7-e2801f71ede9@columbia.edu/)
+
+```
+bio_iov_iter_align_down() drops trailing bvecs with unpin_user_page(),
+but a bvec built by iov_iter_extract_bvecs() can span several pages of
+one folio, each with its own pin. All but the first pin leak.
+
+The partially trimmed bvec has the same problem. Shrinking bv_len does
+not release the pins for the pages cut off by the trim, and
+__bio_release_pages() only unpins the pages bv_len still covers at
+completion.
+
+Both issues occur only with a logical block size above PAGE_SIZE and a
+large folio backing the user buffer. On a device with a 64K logical
+block size, an O_DIRECT pwritev() from a hugetlb mapping that ends 16K
+past a block boundary leaks one huge page per call, whether the
+remainder is its own bvec or the tail of a larger one.
+
+Unpin all pages of a dropped bvec with bvec_unpin(), and unpin the
+pages trimmed off the last bvec as well. Move bvec_unpin() up and split
+its page count into a helper so both sites share it.
+
+Fixes: 20a0e6276edb ("block: align the bio after building it")
+Assisted-by: Claude:claude-fable-5
+Reviewed-by: Hannes Reinecke <hare@kernel.org>
+Tested-by: Shin'ichiro Kawasaki <shinichiro.kawasaki@wdc.com>
+Signed-off-by: Tal Zussman <tz2294@columbia.edu>
+---
+ block/bio.c | 39 +++++++++++++++++++++++++++------------
+ 1 file changed, 27 insertions(+), 12 deletions(-)
+
+diff --git a/block/bio.c b/block/bio.c
+index 14429a5d4e68..73f6271d1250 100644
+--- a/block/bio.c
++++ b/block/bio.c
+@@ -1197,6 +1197,21 @@ bool bio_iov_iter_set(struct bio *bio, const struct iov_iter *iter)
+ 	return true;
+ }
+ 
++static unsigned int bvec_nr_pages(const struct bio_vec *bv)
++{
++	return (bv->bv_offset + bv->bv_len - 1) / PAGE_SIZE -
++		bv->bv_offset / PAGE_SIZE + 1;
++}
++
++static void bvec_unpin(struct bio_vec *bv, bool mark_dirty)
++{
++	struct folio *folio = bvec_folio(bv);
++
++	if (mark_dirty)
++		folio_mark_dirty_lock(folio);
++	unpin_user_folio(folio, bvec_nr_pages(bv));
++}
++
+ /*
+  * Aligns the bio size to the len_align_mask, releasing excessive bio vecs that
+  * __bio_iov_iter_get_pages may have inserted, and reverts the trimmed length
+@@ -1206,6 +1221,7 @@ static int bio_iov_iter_align_down(struct bio *bio, struct iov_iter *iter,
+ 				   struct bio_vec *bv, unsigned len_align_mask)
+ {
+ 	size_t nbytes = bio->bi_iter.bi_size & len_align_mask;
++	unsigned int npages;
+ 
+ 	if (!nbytes)
+ 		return 0;
+@@ -1214,14 +1230,24 @@ static int bio_iov_iter_align_down(struct bio *bio, struct iov_iter *iter,
+ 	bio->bi_iter.bi_size -= nbytes;
+ 	while (nbytes >= bv->bv_len) {
+ 		if (bio_flagged(bio, BIO_PAGE_PINNED))
+-			unpin_user_page(bv->bv_page);
++			bvec_unpin(bv, false);
+ 
+ 		if (!--bio->bi_vcnt)
+ 			return -EFAULT;
+ 		nbytes -= bv->bv_len;
+ 		bv--;
+ 	}
++
++	/*
++	 * __bio_release_pages() only unpins the pages still covered by
++	 * the trimmed bv_len. Count the pages spanned before and after
++	 * the trim and unpin the difference.
++	 */
++	npages = bvec_nr_pages(bv);
+ 	bv->bv_len -= nbytes;
++	npages -= bvec_nr_pages(bv);
++	if (npages && bio_flagged(bio, BIO_PAGE_PINNED))
++		unpin_user_folio(bvec_folio(bv), npages);
+ 	return 0;
+ }
+ 
+@@ -1504,17 +1530,6 @@ int bio_iov_iter_bounce(struct bio *bio, struct iov_iter *iter, size_t maxlen,
+ 	return bio_iov_iter_bounce_read(bio, iter, maxlen, minsize);
+ }
+ 
+-static void bvec_unpin(struct bio_vec *bv, bool mark_dirty)
+-{
+-	struct folio *folio = bvec_folio(bv);
+-	size_t nr_pages = (bv->bv_offset + bv->bv_len - 1) / PAGE_SIZE -
+-			bv->bv_offset / PAGE_SIZE + 1;
+-
+-	if (mark_dirty)
+-		folio_mark_dirty_lock(folio);
+-	unpin_user_folio(folio, nr_pages);
+-}
+-
+ static void bio_iov_iter_unbounce_read(struct bio *bio, bool is_error,
+ 		bool mark_dirty)
+ {
+
+-- 
+2.39.5
+```

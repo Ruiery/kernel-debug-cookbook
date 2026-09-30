@@ -1,0 +1,63 @@
+---
+title: [PATCH v5 1/9] block: use iomap_dirty_folio for block devices
+list: linux-block
+message_id: 20260923-blkdev-fixes-v5-1-89e60d66eb38@columbia.edu
+link: https://lore.kernel.org/linux-block/20260923-blkdev-fixes-v5-1-89e60d66eb38@columbia.edu/
+---
+
+# [PATCH v5 1/9] block: use iomap_dirty_folio for block devices
+
+来源：[https://lore.kernel.org/linux-block/20260923-blkdev-fixes-v5-1-89e60d66eb38@columbia.edu/](https://lore.kernel.org/linux-block/20260923-blkdev-fixes-v5-1-89e60d66eb38@columbia.edu/)
+
+```
+With CONFIG_BUFFER_HEAD=n, block devices are written back through iomap,
+but def_blk_aops uses filemap_dirty_folio, which only sets PG_dirty. It
+does not set the per-block dirty bits in the folio's iomap_folio_state,
+so iomap_writeback_folio() finds no dirty range, submits no I/O and
+clears PG_dirty, resulting in data loss.
+
+Other iomap users set .dirty_folio to iomap_dirty_folio, which marks the
+folio's blocks dirty before calling filemap_dirty_folio().
+
+This is only observable with block size < folio size. With a single
+block there is no iomap_folio_state to get out of sync and
+iomap_writeback_folio() marks the whole folio dirty itself. For a
+page-aligned device, this may require using the BLKBSZSET ioctl to set
+the block size, which requires CAP_SYS_ADMIN. A device whose size is not
+page aligned already gets a sub-page block size from
+set_init_blocksize(), so no ioctl and no privilege is needed.
+
+To reproduce, on a device with a sub-page block size, write a known
+pattern with O_DIRECT, mmap the same range, store to it, msync() and
+fsync(), then read it back with O_DIRECT. A reproducer is available at
+[1].
+
+[1] https://gist.github.com/tzussman/18ab05cba4b3fdc79cce0a69d1fd05b4
+
+Fixes: 925c86a19bac ("fs: add CONFIG_BUFFER_HEAD")
+Reported-by: Sashiko <sashiko-bot@kernel.org>
+Link: https://sashiko.dev/#/patchset/20260730-blk-dontcache-v7-0-3e8e6850068d%40columbia.edu?part=5
+Reviewed-by: Christoph Hellwig <hch@lst.de>
+Reviewed-by: Hannes Reinecke <hare@kernel.org>
+Signed-off-by: Tal Zussman <tz2294@columbia.edu>
+---
+ block/fops.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/block/fops.c b/block/fops.c
+index c915ec0126d7..8d74d0e57f43 100644
+--- a/block/fops.c
++++ b/block/fops.c
+@@ -565,7 +565,7 @@ static int blkdev_writepages(struct address_space *mapping,
+ }
+ 
+ const struct address_space_operations def_blk_aops = {
+-	.dirty_folio	= filemap_dirty_folio,
++	.dirty_folio		= iomap_dirty_folio,
+ 	.release_folio		= iomap_release_folio,
+ 	.invalidate_folio	= iomap_invalidate_folio,
+ 	.read_folio		= blkdev_read_folio,
+
+-- 
+2.39.5
+```

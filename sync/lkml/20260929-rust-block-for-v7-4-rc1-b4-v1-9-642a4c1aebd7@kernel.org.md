@@ -1,0 +1,52 @@
+---
+title: [PATCH GIT PULL 9/9] rust: block: require `Sync` for `Operations::QueueData`
+list: linux-block
+message_id: 20260929-rust-block-for-v7-4-rc1-b4-v1-9-642a4c1aebd7@kernel.org
+link: https://lore.kernel.org/linux-block/20260929-rust-block-for-v7-4-rc1-b4-v1-9-642a4c1aebd7@kernel.org/
+---
+
+# [PATCH GIT PULL 9/9] rust: block: require `Sync` for `Operations::QueueData`
+
+来源：[https://lore.kernel.org/linux-block/20260929-rust-block-for-v7-4-rc1-b4-v1-9-642a4c1aebd7@kernel.org/](https://lore.kernel.org/linux-block/20260929-rust-block-for-v7-4-rc1-b4-v1-9-642a4c1aebd7@kernel.org/)
+
+```
+The queue data installed in a `GenDisk` is stored in the request queue and
+handed back to the driver as a shared borrow through the `queue_rq` and
+`commit_rqs` callbacks. Both callbacks obtain that borrow via
+`ForeignOwnable::borrow` and may execute concurrently on several CPUs,
+since the block layer runs one hardware queue per CPU. That means a shared
+reference to the same queue data can be live on multiple threads at once,
+which is only sound when the referent is `Sync`.
+
+The initial `GenDisk` private data support omitted this bound, so a
+driver could install a non-`Sync` type as queue data and then access
+it concurrently from multiple CPUs without synchronization. Add a
+`Sync` bound to the `QueueData` associated type to rule that out.
+
+Fixes: 90d952fac8ac ("rust: block: add `GenDisk` private data support")
+Cc: stable@vger.kernel.org
+Reviewed-by: Alice Ryhl <aliceryhl@google.com>
+Reviewed-by: Gary Guo <gary@garyguo.net>
+Link: https://msgid.link/20260608-queue-data-sync-v1-1-0efff051aaf3@kernel.org
+Signed-off-by: Andreas Hindborg <a.hindborg@kernel.org>
+---
+ rust/kernel/block/mq/operations.rs | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/rust/kernel/block/mq/operations.rs b/rust/kernel/block/mq/operations.rs
+index b9ab0e6102a4..08111d8368eb 100644
+--- a/rust/kernel/block/mq/operations.rs
++++ b/rust/kernel/block/mq/operations.rs
+@@ -36,7 +36,7 @@
+ pub trait Operations: Sized {
+     /// Data associated with the `struct request_queue` that is allocated for
+     /// the `GenDisk` associated with this `Operations` implementation.
+-    type QueueData: ForeignOwnable;
++    type QueueData: ForeignOwnable + Sync;
+ 
+     /// Called by the kernel to queue a request with the driver. If `is_last` is
+     /// `false`, the driver is allowed to defer committing the request.
+
+-- 
+2.54.0
+```
