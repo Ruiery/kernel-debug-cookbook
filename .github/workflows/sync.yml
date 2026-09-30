@@ -1,0 +1,32 @@
+name: sync-external
+
+on:
+  schedule:
+    # 每天 09:37 UTC（避开整点，减少并发高峰）
+    - cron: '37 9 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 运行同步
+        run: python3 scripts/sync-external.py
+
+      - name: 提交并推送
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add sync/
+          if git diff --cached --quiet; then
+            echo "无新内容，跳过提交"
+          else
+            git commit -m "sync: 更新外部知识 $(date -u +%F)"
+            git push
+          fi
