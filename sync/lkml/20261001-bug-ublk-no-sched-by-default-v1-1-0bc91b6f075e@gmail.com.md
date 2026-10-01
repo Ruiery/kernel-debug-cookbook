@@ -1,7 +1,6 @@
 ---
 title: [PATCH] ublk: don't use an I/O scheduler by default
 list: linux-block
-source: lkml
 message_id: 20261001-bug-ublk-no-sched-by-default-v1-1-0bc91b6f075e@gmail.com
 link: https://lore.kernel.org/linux-block/20261001-bug-ublk-no-sched-by-default-v1-1-0bc91b6f075e@gmail.com/
 ---

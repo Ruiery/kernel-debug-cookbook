@@ -1,7 +1,6 @@
 ---
 title: [PATCH] block: drop the cached plug time when blk_add_rq_to_plug() flushes
 list: linux-block
-source: lkml
 message_id: 20260930-blk-plug-ts-flush-v1-1-bf8ca7bc5cd6@virtuozzo.com
 link: https://lore.kernel.org/linux-block/20260930-blk-plug-ts-flush-v1-1-bf8ca7bc5cd6@virtuozzo.com/
 ---

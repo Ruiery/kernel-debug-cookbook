@@ -1,7 +1,6 @@
 ---
 title: [PATCH] ublk: drop the device reference outside ublk_ctl_mutex in DEL_DEV
 list: linux-block
-source: lkml
 message_id: 20261001-bug-ublk-del-dev-put-unlocked-v1-1-18e9bb9be727@gmail.com
 link: https://lore.kernel.org/linux-block/20261001-bug-ublk-del-dev-put-unlocked-v1-1-18e9bb9be727@gmail.com/
 ---

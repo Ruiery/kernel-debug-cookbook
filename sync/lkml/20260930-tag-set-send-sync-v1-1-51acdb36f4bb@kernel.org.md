@@ -1,7 +1,6 @@
 ---
 title: [PATCH] rust: block: implement `Send` and `Sync` for `TagSet`
 list: linux-block
-source: lkml
 message_id: 20260930-tag-set-send-sync-v1-1-51acdb36f4bb@kernel.org
 link: https://lore.kernel.org/linux-block/20260930-tag-set-send-sync-v1-1-51acdb36f4bb@kernel.org/
 ---

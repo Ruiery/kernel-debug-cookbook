@@ -1,7 +1,6 @@
 ---
 title: [PATCH] block: don't quiesce the queue when setting the default elevator
 list: linux-block
-source: lkml
 message_id: 20261001-bug-block-elevator-init-quiesce-v1-1-5c85fa0ec59b@gmail.com
 link: https://lore.kernel.org/linux-block/20261001-bug-block-elevator-init-quiesce-v1-1-5c85fa0ec59b@gmail.com/
 ---
