@@ -35,7 +35,7 @@
 - Epistemic Lock-in（EpiLoop）— https://openreview.net/pdf?id=hMptycsA60
 - progress mirage / loop engineering — https://zenodo.org/records/21672574
 
-## 数据源（活数据，见 scripts/sync-external.py）
+## 数据源（活数据）
 
-- lore.kernel.org（public-inbox，git 协议）— LKML patch
-- syzbot dashboard（syzkaller.appspot.com）— bug 报告（待接 API）
+- lore.kernel.org（public-inbox，git 协议）— LKML patch + 子系统列表里的 [syzbot] 邮件；由 `scripts/sync-external.py` 每日同步（CI，免代理）
+- syzbot dashboard（syzkaller.appspot.com）— 结构化全量 bug 报告；由 `scripts/sync-syzbot-dashboard.py` 按子系统抓取（本地 + 代理，跑不了 CI）
