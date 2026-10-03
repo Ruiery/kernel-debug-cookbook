@@ -21,6 +21,35 @@
 
 增长节奏：`methodology/` 慢（发现新 bug 类别时补清单），`kb/` 快（每次 commit/debug 加一条），`scripts/` 按需。
 
+## 怎么使用（人）
+
+**A 定位（出 oops / 崩溃后追根因）**
+
+1. 读 `methodology/00-决策树.md`：先定症状类型，判断「上游原生还是魔改」。
+2. 按症状跳到对应 playbook（`01`~`17`），照「工具 → 读输出」执行。
+3. 定位根因 → 最小改动 → 按 `03-修复清单与流程.md` 逐条自查 → 用 sanitizer / 测试验证。
+4. 按 `kb/_template.md` 记一条（`lesson` 必填，不记＝白 debug）。
+
+**B 防问题（改完代码、上生产前）**
+
+```bash
+export KERNEL_TREE=/path/to/linux    # 你的内核源码树（远程 Linux）
+bash scripts/build-kasan.sh          # 编 KASAN/KCSAN/lockdep 内核
+bash scripts/run-kselftest.sh        # 跑 kselftest
+bash scripts/run-syzkaller.sh        # 跑 syzkaller fuzz（需先配好 QEMU 镜像）
+```
+
+**外部数据**
+
+- LKML patch：CI 每日自动同步，本地 `git pull` 取最新。
+- syzbot 仪表盘全量（需代理，本地手动）：
+
+```bash
+python3 scripts/sync-syzbot-dashboard.py --subsystems mm,block,kernel,cgroups --proxy http://127.0.0.1:7890
+```
+
+**自动记经验（可选）**：把 `scripts/git-to-kb-hook.sh` 挂成 `post-commit`，每次 commit 生成 kb 候选条目。
+
 ## 与任何 Agent 配合
 
 本仓库**工具无关**——不绑定 Claude Code、Cursor、VS Code 或任何特定 Agent。任何能「读文件 + 跑 bash」的 Agent 都能直接使用：
