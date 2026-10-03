@@ -5,7 +5,7 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 DATE="$(date +%F)"
 SUBJECT="$(git log -1 --pretty=%s)"
 BODY="$(git log -1 --pretty=%b)"
-SLUG="$(printf '%s' "$SUBJECT" | tr ' /' '__' | cut -c1-60)"
+SLUG="$(printf '%s' "$SUBJECT" | tr -c 'A-Za-z0-9._-' '_' | cut -c1-60)"
 OUT="$REPO_ROOT/kb/$DATE-$SLUG.md"
 cat > "$OUT" <<EOF
 ---
