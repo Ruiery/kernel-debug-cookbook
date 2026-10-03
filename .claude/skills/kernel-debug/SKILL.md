@@ -5,13 +5,13 @@ description: Linux 内核问题定位与根因排查。当用户遇到内核 oop
 
 # 内核调试（kernel-debug）
 
-按 `D:\claude-workspace\kernel` 知识库定位 Linux 内核问题根因并正确修复。本 skill 是薄入口，具体方法论都在该仓库里，不要在这里复制方法论正文。
+按本仓库知识库定位 Linux 内核问题根因并正确修复。本 SKILL.md 位于 `<仓库根>/.claude/skills/kernel-debug/`，**仓库根 = 本文件上三级（`../../../`）**。本 skill 是薄入口，具体方法论都在仓库里，不要在这里复制方法论正文。
 
 ## 启动
 
-1. 读 `D:\claude-workspace\kernel\AGENTS.md` —— 先内化 AI 行为约束（证据门 / 审计轨迹 / 不信任自评分 / 死胡同恢复）。
-2. 读 `D:\claude-workspace\kernel\methodology\00-决策树.md` —— 定位主入口，按「第 0 号原则 → 第 0 步（上游/魔改）→ 第 1 步（症状分型）」走。
-3. 按分型结果跳到 `methodology/` 下 `01`~`17` 对应的 playbook，照「工具 → 读输出」执行。
+1. 读 `../../../AGENTS.md` —— 先内化 AI 行为约束（证据门 / 审计轨迹 / 不信任自评分 / 死胡同恢复）。
+2. 读 `../../../methodology/00-决策树.md` —— 定位主入口，按「第 0 号原则 → 第 0 步（上游/魔改）→ 第 1 步（症状分型）」走。
+3. 按分型结果跳到 `../../../methodology/` 下 `01`~`17` 对应的 playbook，照「工具 → 读输出」执行。
 
 ## 铁律
 
@@ -22,5 +22,9 @@ description: Linux 内核问题定位与根因排查。当用户遇到内核 oop
 
 ## 收尾
 
-- 定位并修复后，按 `kb/_template.md` 记一条经验（`lesson` 必填，不记＝白 debug）。
-- 需要正式复盘时用 `kb/_summary-template.md`。
+- 定位并修复后，按 `../../../kb/_template.md` 记一条经验（`lesson` 必填，不记＝白 debug）。
+- 需要正式复盘时用 `../../../kb/_summary-template.md`。
+
+## 查数据
+
+- 查历史案例 / syzbot 报告 / patch：`bash ../../../scripts/search-kb.sh <关键词>`（一个命令 grep 遍 kb/ + sync/）。
