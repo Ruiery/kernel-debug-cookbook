@@ -5,7 +5,7 @@ description: Use when 遇到 Linux 内核 oops、panic、崩溃、挂死（softl
 
 # kernel-debug
 
-内核调试知识库的薄入口。方法论本体在 `../../../methodology/`（决策树 + 17 个 playbook），这里只放必须记住的原则和入口，不重复正文。
+内核调试知识库的薄入口。方法论本体在本目录 `methodology/`（决策树 + 17 个 playbook），这里只放必须记住的原则和入口，不重复正文。
 
 ## 铁律
 
@@ -16,8 +16,8 @@ description: Use when 遇到 Linux 内核 oops、panic、崩溃、挂死（softl
 
 ## 用法
 
-1. 读 `../../../AGENTS.md`（AI 行为约束：证据门/审计轨迹/死胡同恢复）
-2. 读 `../../../methodology/00-决策树.md`，按「第 0 号原则 → 第 0 步（上游/魔改）→ 第 1 步（症状分型）」走
-3. 跳 `../../../methodology/01~17.md` 对应 playbook
-4. 查历史案例 / syzbot 报告 / patch：`bash ../../../scripts/search-kb.sh <关键词>`
-5. 修完按 `../../../kb/_template.md` 记一条（lesson 必填）
+1. 读 `AGENTS.md`（AI 行为约束：证据门/审计轨迹/死胡同恢复）
+2. 读 `methodology/00-决策树.md`，按「第 0 号原则 → 第 0 步（上游/魔改）→ 第 1 步（症状分型）」走
+3. 跳 `methodology/01~17.md` 对应 playbook
+4. 查历史案例 / syzbot 报告 / patch：`bash scripts/search-kb.sh <关键词>`
+5. 修完按 `kb/_template.md` 记一条（lesson 必填）

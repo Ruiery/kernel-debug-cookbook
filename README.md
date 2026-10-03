@@ -21,6 +21,23 @@
 
 增长节奏：`methodology/` 慢（发现新 bug 类别时补清单），`kb/` 快（每次 commit/debug 加一条），`scripts/` 按需。
 
+## 安装（Claude Code skill）
+
+别人安装，一条命令：把仓库 clone 到 skills 目录。
+
+```bash
+git clone git@github.com:Ruiery/kernel-debug-cookbook.git ~/.claude/skills/kernel-debug
+```
+
+装好后，在任何目录：
+
+- 敲 `/kernel-debug`，或
+- 直接说「这个 oops 怎么定位」（description 匹配自动触发）。
+
+更新：`cd ~/.claude/skills/kernel-debug && git pull`。
+
+> 原理：仓库根目录的 `SKILL.md` 就是 skill 入口，`methodology/`、`kb/`、`scripts/` 都在同一目录、全相对路径，所以 clone 到任何路径（任何盘、任何机器）都能用，零配置、零硬编码。
+
 ## 怎么使用（人）
 
 **A 定位（出 oops / 崩溃后追根因）**
