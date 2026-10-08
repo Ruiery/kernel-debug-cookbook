@@ -1,0 +1,85 @@
+---
+title: [PATCH 1/2] selftests: ublk: don't keep the fault_inject timespec on the stack
+list: linux-block
+message_id: 20261008-bug-ublk-selftest-fault-inject-delay-v1-1-a96af7ead06e@gmail.com
+link: https://lore.kernel.org/linux-block/20261008-bug-ublk-selftest-fault-inject-delay-v1-1-a96af7ead06e@gmail.com/
+---
+
+# [PATCH 1/2] selftests: ublk: don't keep the fault_inject timespec on the stack
+
+来源：[https://lore.kernel.org/linux-block/20261008-bug-ublk-selftest-fault-inject-delay-v1-1-a96af7ead06e@gmail.com/](https://lore.kernel.org/linux-block/20261008-bug-ublk-selftest-fault-inject-delay-v1-1-a96af7ead06e@gmail.com/)
+
+```
+The fault_inject target delays each I/O with an IORING_OP_TIMEOUT, and
+generic_06 relies on the delay to kill the server while an I/O is still
+outstanding.
+
+The timespec of the timeout is a local variable of
+ublk_fault_inject_queue_io(). The SQE only records its address, and
+io_uring reads it when the SQE is submitted, after the function has
+returned. The timeout gets whatever the stack holds by then and expires
+almost at once, so --delay_us has no effect, and generic_06 fails
+because dd completes before the server is killed.
+
+Store the timespec in the per-device fi_opts, and split the delay into
+seconds and nanoseconds so that delays of a second or more give a valid
+timespec.
+
+fio 4k random reads for 10 s at queue depth 1 on a fault_inject device
+with --delay_us 1000000:
+
+                  before      after   expected
+  I/Os            446927         10         10
+  mean latency   18.3 us    1.000 s        1 s
+
+Fixes: 81586652bb1f ("selftests: ublk: add generic_06 for covering fault inject")
+Signed-off-by: Qiliang Yuan <odys.yuan@gmail.com>
+---
+ tools/testing/selftests/ublk/fault_inject.c | 14 ++++++++------
+ 1 file changed, 8 insertions(+), 6 deletions(-)
+
+diff --git a/tools/testing/selftests/ublk/fault_inject.c b/tools/testing/selftests/ublk/fault_inject.c
+index 150896e02ff8b..e055f51a65447 100644
+--- a/tools/testing/selftests/ublk/fault_inject.c
++++ b/tools/testing/selftests/ublk/fault_inject.c
+@@ -11,7 +11,7 @@
+ #include "kublk.h"
+ 
+ struct fi_opts {
+-	long long delay_ns;
++	struct __kernel_timespec delay;
+ 	bool die_during_fetch;
+ };
+ 
+@@ -47,7 +47,8 @@ static int ublk_fault_inject_tgt_init(const struct dev_ctx *ctx,
+ 		return -ENOMEM;
+ 	}
+ 
+-	opts->delay_ns = ctx->fault_inject.delay_us * 1000;
++	opts->delay.tv_sec = ctx->fault_inject.delay_us / 1000000;
++	opts->delay.tv_nsec = ctx->fault_inject.delay_us % 1000000 * 1000;
+ 	opts->die_during_fetch = ctx->fault_inject.die_during_fetch;
+ 	dev->private_data = opts;
+ 
+@@ -85,12 +86,13 @@ static int ublk_fault_inject_queue_io(struct ublk_thread *t,
+ 	const struct ublksrv_io_desc *iod = ublk_get_iod(q, tag);
+ 	struct io_uring_sqe *sqe;
+ 	struct fi_opts *opts = q->dev->private_data;
+-	struct __kernel_timespec ts = {
+-		.tv_nsec = opts->delay_ns,
+-	};
+ 
++	/*
++	 * Pass a timespec that outlives this function, since io_uring
++	 * reads it only when the SQE is submitted.
++	 */
+ 	ublk_io_alloc_sqes(t, &sqe, 1);
+-	io_uring_prep_timeout(sqe, &ts, 1, 0);
++	io_uring_prep_timeout(sqe, &opts->delay, 1, 0);
+ 	sqe->user_data = build_user_data(tag, ublksrv_get_op(iod), 0, q->q_id, 1);
+ 
+ 	ublk_queued_tgt_io(t, q, tag, 1);
+
+-- 
+2.43.0
+```
