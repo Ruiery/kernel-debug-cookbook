@@ -1,0 +1,82 @@
+---
+title: [PATCH v2] blk-throttle: Avoid unsequenced accesses to jiffies in throtl_schedule_pending_timer()
+list: linux-block
+message_id: 20261115-blk-throttle-wunsequenced-v2-1-1d297c891b82@kernel.org
+link: https://lore.kernel.org/linux-block/20261115-blk-throttle-wunsequenced-v2-1-1d297c891b82@kernel.org/
+---
+
+# [PATCH v2] blk-throttle: Avoid unsequenced accesses to jiffies in throtl_schedule_pending_timer()
+
+来源：[https://lore.kernel.org/linux-block/20261115-blk-throttle-wunsequenced-v2-1-1d297c891b82@kernel.org/](https://lore.kernel.org/linux-block/20261115-blk-throttle-wunsequenced-v2-1-1d297c891b82@kernel.org/)
+
+```
+After a recent improvement in clang to warn on unsequenced accesses to
+volatile variables [1], two instances appear in
+throtl_schedule_pending_timer(), which can break the build with
+CONFIG_WERROR=y / W=e:
+
+  block/blk-throttle.c:469:25: error: unsequenced accesses to volatile qualified 'jiffies' [-Werror,-Wunsequenced]
+    469 |                    expires - jiffies, jiffies);
+        |                              ~~~~~~~  ^
+  block/blk-throttle.c:469:25: error: unsequenced accesses to volatile qualified 'jiffies' [-Werror,-Wunsequenced]
+    469 |                    expires - jiffies, jiffies);
+        |                              ~~~~~~~  ^
+
+Per C11 5.1.2.3.2, accessing a volatile object is a side effect. Per C11
+6.5.2, unsequenced side effects on the same scalar object are undefined
+behavior. Per C11 6.5.2.2.10/12, the evaluation of arguments in a
+function call is indeterminately sequenced, meaning any side effects in
+the arguments are unsequenced.
+
+Add a local variable to hold the value of jiffies before the function
+call so that there are no unsequenced side effects, clearing up the
+warning.
+
+Cc: stable@vger.kernel.org
+Fixes: 69df0ab030c9 ("blk-throttle: separate out throtl_service_queue->pending_timer from throtl_data->dispatch_work")
+Closes: https://github.com/ClangBuiltLinux/linux/issues/2191
+Link: https://github.com/llvm/llvm-project/commit/955715460eaf9188c241c74750637fc82dfcc423 [1]
+Signed-off-by: Nathan Chancellor <nathan@kernel.org>
+---
+Changes in v2:
+- Reuse value of jiffies in max_expire to avoid
+  -Wunused-but-set-variable for j when CONFIG_BLK_DEV_IO_TRACE is
+  disabled (Sashiko)
+- Link to v1: https://patch.msgid.link/20261114-blk-throttle-wunsequenced-v1-1-d28ed5553ff3@kernel.org
+---
+ block/blk-throttle.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/block/blk-throttle.c b/block/blk-throttle.c
+index c5e26551956a..8e58e50bce4d 100644
+--- a/block/blk-throttle.c
++++ b/block/blk-throttle.c
+@@ -453,7 +453,8 @@ static void throtl_dequeue_tg(struct throtl_grp *tg)
+ static void throtl_schedule_pending_timer(struct throtl_service_queue *sq,
+ 					  unsigned long expires)
+ {
+-	unsigned long max_expire = jiffies + 8 * DFL_THROTL_SLICE;
++	unsigned long j = jiffies;
++	unsigned long max_expire = j + 8 * DFL_THROTL_SLICE;
+ 
+ 	/*
+ 	 * Since we are adjusting the throttle limit dynamically, the sleep
+@@ -466,7 +467,7 @@ static void throtl_schedule_pending_timer(struct throtl_service_queue *sq,
+ 		expires = max_expire;
+ 	mod_timer(&sq->pending_timer, expires);
+ 	throtl_log(sq, "schedule timer. delay=%lu jiffies=%lu",
+-		   expires - jiffies, jiffies);
++		   expires - j, j);
+ }
+ 
+ /**
+
+---
+base-commit: ab43ec385580b8f8abf72d70fa3acbf4e4f098a5
+change-id: 20261114-blk-throttle-wunsequenced-ccf308a23c1b
+
+Best regards,
+--  
+Cheers,
+Nathan
+```
